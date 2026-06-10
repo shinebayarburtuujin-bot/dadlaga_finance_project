@@ -88,15 +88,29 @@ transactionForm.addEventListener('submit', async (e) => {
             }
 
             // Хуучин зарлагууд дэар ОДООНЫ ШИНЭ зарлагын дүнг нэмээд лимитээс давж байгааг шалгах
+           // Хуучин зарлагууд дээр ОДООНЫ ШИНЭ зарлагын дүнг нэмээд лимитээс давж байгааг шалгах
             if (totalPastExpense + amount > limitAmount) {
                 const currentTotal = totalPastExpense + amount;
-                // Хэрэглэгчээс зөвшөөрөл авна
+                const overAmount = currentTotal - limitAmount;
+                const beforeRemaining = limitAmount - totalPastExpense;
+
                 const proceed = confirm(
-                    `АНХААРУУЛГА!\n\nТаны ${currentMonthYear} сарын "${category}" ангиллын төсвийн хязгаар: ${limitAmount.toLocaleString()} ₮\nОдоогийн нийт зарцуулалт: ${currentTotal.toLocaleString()} ₮ болох гэж байна.\n\nТөсөв хэтрүүлж гүйлгээг үргэлжлүүлэх үү?`
+                    `⚠️ ТӨСӨВ ХЭТЭРЛЭЭ!\n\n` +
+                    `Ангилал: ${category}\n` +
+                    `Сар: ${currentMonthYear}\n\n` +
+                    `Таны төсөв: ${limitAmount.toLocaleString()} ₮\n` +
+                    `Одоогийн үлдэгдэл төсөв: ${beforeRemaining.toLocaleString()} ₮\n` +
+                    `Оруулах гэж буй гүйлгээ: ${amount.toLocaleString()} ₮\n\n` +
+                    `Энэ гүйлгээг хийвэл нийт зарцуулалт: ${currentTotal.toLocaleString()} ₮ болно.\n` +
+                    `Төсвөөс хэтэрсэн дүн: ${overAmount.toLocaleString()} ₮\n\n` +
+                    `Гүйлгээг үргэлжлүүлж хийх үү?\n\n` +
+                    `OK = Гүйлгээ хийх\n` +
+                    `Cancel = Болих`
                 );
                 
                 if (!proceed) {
-                    return; // Хэрэв хэрэглэгч "Цуцлах" дээр дарвал гүйлгээг хадгалахгүй зогсооно!
+                    alert("Гүйлгээ цуцлагдлаа. Төсөв хэтэрсэн тул хадгалаагүй.");
+                    return;
                 }
             }
         }
