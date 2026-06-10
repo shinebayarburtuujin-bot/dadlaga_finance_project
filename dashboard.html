@@ -21,7 +21,14 @@
             </a>
 
             <div class="d-flex align-items-center gap-3">
-                 <button class="btn btn-sm btn-outline-primary fw-bold text-white border-primary-subtle" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasBudget">Төсөв тогтоох</button>
+                <button class="btn btn-sm btn-outline-primary fw-bold text-white border-primary-subtle" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasBudget">
+                    Төсөв тогтоох
+                </button>
+
+                <button class="btn btn-sm btn-outline-warning fw-bold text-white border-warning-subtle" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasBadges">
+                    <i class="fa-solid fa-award me-1"></i> Миний шагнал
+                </button>
+
                 <span class="text-light small" id="user-email">....</span>
 
                 <button class="btn btn-outline-light btn-sm" id="btn-logout">
@@ -131,6 +138,7 @@
                     </form>
                 </div>
             </div>
+
             <div class="col-lg-8">
                 <div class="card border-0 shadow-sm p-4">
                     <h5>Гүйлгээний түүх</h5>
@@ -155,6 +163,7 @@
 
         </div>
     </div>
+
     <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasBudget" aria-labelledby="offcanvasBudgetLabel">    
         <div class="offcanvas-header bg-dark text-white">
             <h5 class="offcanvas-title fw-bold" id="offcanvasBudgetLabel">
@@ -204,6 +213,80 @@
                 <h6 class="fw-bold text-dark mb-3">Одоогийн тогтоосон төсвүүд:</h6>
                 <div class="text-center py-3 text-muted small bg-light rounded">
                     Одоогоор төсөв тогтоогоогүй байна.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasBadges" aria-labelledby="offcanvasBadgesLabel">
+        <div class="offcanvas-header bg-warning text-dark">
+            <h5 class="offcanvas-title fw-bold" id="offcanvasBadgesLabel">
+                <i class="fa-solid fa-award me-2"></i>Миний шагналууд
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+
+        <div class="offcanvas-body p-4">
+            <p class="text-secondary small mb-4">
+                Та гүйлгээ бүртгэх, төсөв хэтрүүлэхгүй байх, орлого нэмэх зэрэг үйлдлээр шагнал цол авах боломжтой.
+            </p>
+
+            <h6 class="fw-bold text-dark mb-3">
+                <i class="fa-solid fa-trophy text-warning me-1"></i> Миний авсан шагналууд
+            </h6>
+
+            <div id="badges-list" class="mb-4">
+                <div class="text-center py-4 text-muted small bg-light rounded">
+                    <i class="fa-solid fa-award fs-3 d-block mb-2"></i>
+                    Одоогоор шагнал аваагүй байна.
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <h6 class="fw-bold text-dark mb-3">
+                <i class="fa-solid fa-list-check text-primary me-1"></i> Ямар шагналууд байдаг вэ?
+            </h6>
+
+            <div class="card border-0 shadow-sm mb-2 bg-light">
+                <div class="card-body py-2">
+                    <div class="fw-bold">🥉 Эхлэгч санхүүч</div>
+                    <div class="small text-muted">Нийт 5 гүйлгээ бүртгэвэл авна.</div>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm mb-2 bg-light">
+                <div class="card-body py-2">
+                    <div class="fw-bold">🥈 Санхүүгээ хянагч</div>
+                    <div class="small text-muted">Нийт 10 гүйлгээ бүртгэвэл авна.</div>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm mb-2 bg-light">
+                <div class="card-body py-2">
+                    <div class="fw-bold">🥇 Мөнгөний мастер</div>
+                    <div class="small text-muted">Нийт 20 гүйлгээ бүртгэвэл авна.</div>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm mb-2 bg-light">
+                <div class="card-body py-2">
+                    <div class="fw-bold">🛡️ Төсвийн сахиул</div>
+                    <div class="small text-muted">Зарлага бүртгэхдээ төсвөө хэтрүүлэхгүй бол авна.</div>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm mb-2 bg-light">
+                <div class="card-body py-2">
+                    <div class="fw-bold">💰 Орлогын аварга</div>
+                    <div class="small text-muted">100,000₮ буюу түүнээс дээш орлого бүртгэвэл авна.</div>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm mb-2 bg-light">
+                <div class="card-body py-2">
+                    <div class="fw-bold">✅ Хариуцлагатай зарлага</div>
+                    <div class="small text-muted">50,000₮ буюу түүнээс дээш зарлага хийсэн ч төсөв хэтрүүлэхгүй бол авна.</div>
                 </div>
             </div>
         </div>

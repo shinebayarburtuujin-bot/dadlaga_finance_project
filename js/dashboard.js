@@ -24,9 +24,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Хэрэглэгч нэвтэрсэн нь үнэн бол имэйлийг нь navbar дээр харуулна
     document.getElementById('user-email').textContent = user.email;
 
+    // Хуудас нээгдэх үед өмнөх гүйлгээний түүхийг шалгаад авах ёстой шагналыг автоматаар олгоно
+    await syncExistingBadges((await supabase.auth.getUser()).data.user);
     await fetchTransactions();
     await fetchBudgets();
-});
+    await fetchBadges();
+    });
 
 transactionForm.addEventListener('submit', async (e) => {
     e.preventDefault(); // Хуудас Refresh хийгдэхийг зогсооно
@@ -49,7 +52,7 @@ transactionForm.addEventListener('submit', async (e) => {
     }
 
 // --- (Формын утгуудыг авсны дараа, Insert хийхийн өмнөх хэсэг) ---
-    
+    let isBudgetExceeded = false;
     // Хэрэв хийж буй гүйлгээ нь ЗАРЛАГА бол ТӨСӨВ ХЭТЭРСЭН ЭСЭХИЙГ ШАЛГАНА
     if (type === 'expense') {
         // Тухайн гүйлгээний огнооноос Жил-Сарыг салгаж авна (Жишээ нь: "2026-06-08" -> "2026-06")
@@ -64,17 +67,37 @@ transactionForm.addEventListener('submit', async (e) => {
             .eq('month_year', currentMonthYear)
             .maybeSingle(); // Олдвол ганцхан объект авна, олдохгүй бол null
 
-        // Хэрэв энэ сард энэ ангилалд зориулсан төсөв олдвол цааш шалгана
-        if (budgetData) {
-            const limitAmount = budgetData.limit_amount;
+        // Хэрэв энэ сард энэ ангилалд зориулсан төсөв байхгүй бол хэрэглэгчээс лавлаж асууна
+        if (!budgetData) {
+            const proceedWithoutBudget = confirm(
+                `⚠️ ТӨСӨВ ТОГТООГООГҮЙ БАЙНА!\n\n` +
+                `Ангилал: ${category}\n` +
+                `Сар: ${currentMonthYear}\n\n` +
+                `Энэ ангилалд төсөв бүртгээгүй байна.\n` +
+                `Гүйлгээг үргэлжлүүлж хийх үү?\n\n` +
+                `OK = Гүйлгээ хийх\n` +
+                `Cancel = Болих`
+            );
+
+            if (!proceedWithoutBudget) {
+                alert("Гүйлгээ цуцлагдлаа. Төсөв тогтоогоогүй тул хадгалаагүй.");
+                return;
+            }
+        } else {
+            const limitAmount = Number(budgetData.limit_amount);
 
             // Энэ сард, энэ ангилалд урьд нь хийгдсэн бүх зарлагуудын нийлбэрийг Supabase-с татах
-            const { data: pastExpenses } = await supabase
+            const { data: pastExpenses, error: pastExpenseError } = await supabase
                 .from('transactions')
-                .select('amount')
+                .select('amount, date')
                 .eq('user_id', user.id)
                 .eq('type', 'expense')
                 .eq('category', category);
+
+            if (pastExpenseError) {
+                alert("Өмнөх зарлагуудыг шалгахад алдаа гарлаа: " + pastExpenseError.message);
+                return;
+            }
             
             // Энэ сард хамаарах зарлагуудыг шүүж нийлбэрийг олно
             let totalPastExpense = 0;
@@ -82,14 +105,14 @@ transactionForm.addEventListener('submit', async (e) => {
                 pastExpenses.forEach(tx => {
                     // Гүйлгээ бүрийн огноо нь энэ сард хамааралтай эсэхийг шалгах
                     if (tx.date && tx.date.substring(0, 7) === currentMonthYear) {
-                        totalPastExpense += tx.amount;
+                        totalPastExpense += Number(tx.amount);
                     }
                 });
             }
 
-            // Хуучин зарлагууд дэар ОДООНЫ ШИНЭ зарлагын дүнг нэмээд лимитээс давж байгааг шалгах
-           // Хуучин зарлагууд дээр ОДООНЫ ШИНЭ зарлагын дүнг нэмээд лимитээс давж байгааг шалгах
+            // Хуучин зарлагууд дээр ОДООНЫ ШИНЭ зарлагын дүнг нэмээд лимитээс давж байгааг шалгах
             if (totalPastExpense + amount > limitAmount) {
+                isBudgetExceeded = true;
                 const currentTotal = totalPastExpense + amount;
                 const overAmount = currentTotal - limitAmount;
                 const beforeRemaining = limitAmount - totalPastExpense;
@@ -103,9 +126,7 @@ transactionForm.addEventListener('submit', async (e) => {
                     `Оруулах гэж буй гүйлгээ: ${amount.toLocaleString()} ₮\n\n` +
                     `Энэ гүйлгээг хийвэл нийт зарцуулалт: ${currentTotal.toLocaleString()} ₮ болно.\n` +
                     `Төсвөөс хэтэрсэн дүн: ${overAmount.toLocaleString()} ₮\n\n` +
-                    `Гүйлгээг үргэлжлүүлж хийх үү?\n\n` +
-                    `OK = Гүйлгээ хийх\n` +
-                    `Cancel = Болих`
+                    `Гүйлгээг үргэлжлүүлж хийх үү?\n\n`
                 );
                 
                 if (!proceed) {
@@ -135,9 +156,19 @@ transactionForm.addEventListener('submit', async (e) => {
         alert("Гүйлгээг хадгалахад алдаа гарлаа: " + error.message);
         console.error("Алдааны дэлгэрэнгүй:", error);
     } else {
-        alert("Гүйлгээ амжилттай бүртгэгдлээ!");
-        transactionForm.reset(); // Формын бүх талбарыг цэвэрлэж хоосон болгоно
-    }
+    alert("Гүйлгээ амжилттай бүртгэгдлээ!");
+
+    await checkBadges(user, {
+    type: type,
+    category: category,
+    amount: amount,
+    date: date
+}, isBudgetExceeded);
+
+    await fetchBadges();
+
+    transactionForm.reset(); // Формын бүх талбарыг цэвэрлэж хоосон болгоно
+}
     // Гүйлгээ нэмэгдсэний дараа хүснэгт болон төсвийн үлдэгдлийг шинэчилнэ
     await fetchTransactions();
     await fetchBudgets();
@@ -254,9 +285,11 @@ window.deleteTransaction = async function(id) {
 
         alert("Гүйлгээ амжилттай устгагдлаа.");
 
-        // Устгасны дараа дэлгэц дээрх хүснэгт болон төсвийн үлдэгдлийг шинэчилж харуулна
+        // Устгасны дараа дэлгэц дээрх хүснэгт, төсөв болон шагналын жагсаалтыг шинэчилж харуулна
+        await syncExistingBadges((await supabase.auth.getUser()).data.user);
         await fetchTransactions();
         await fetchBudgets();
+        await fetchBadges();
 
     } catch (error) {
         alert("Гүйлгээ устгахад алдаа гарлаа: " + error.message);
@@ -341,6 +374,316 @@ budgetForm.addEventListener('submit', async (e) => {
         await fetchBudgets();
     }
 });
+// --- ӨМНӨХ ГҮЙЛГЭЭНИЙ ТҮҮХИЙГ ШАЛГАЖ ШАГНАЛ АВТОМАТААР ОЛГОХ ФУНКЦ ---
+// --- ӨМНӨХ ГҮЙЛГЭЭНИЙ ТҮҮХИЙГ ШАЛГАЖ ШАГНАЛ АВТОМАТААР ОЛГОХ ФУНКЦ ---
+async function syncExistingBadges(user) {
+    const { data: transactions, error: txError } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id);
+
+    if (txError) {
+        console.error("Өмнөх гүйлгээнүүдийг шалгахад алдаа:", txError.message);
+        return;
+    }
+
+    const { data: existingBadges, error: badgeError } = await supabase
+        .from('badges')
+        .select('id, badge_name')
+        .eq('user_id', user.id);
+
+    if (badgeError) {
+        console.error("Өмнөх шагналуудыг шалгахад алдаа:", badgeError.message);
+        return;
+    }
+
+    const transactionList = transactions || [];
+    const transactionCount = transactionList.length;
+    let earnedBadges = [];
+
+    // Хэрвээ гүйлгээ огт байхгүй бол өмнөх бүх шагналыг устгана
+    if (transactionCount === 0) {
+        if (existingBadges && existingBadges.length > 0) {
+            const badgeIdsToDelete = existingBadges.map(b => b.id);
+
+            const { error: deleteError } = await supabase
+                .from('badges')
+                .delete()
+                .in('id', badgeIdsToDelete);
+
+            if (deleteError) {
+                console.error("Гүйлгээ байхгүй үед шагнал устгахад алдаа:", deleteError.message);
+            }
+        }
+        return;
+    }
+
+    // Нийт гүйлгээний тоогоор авах шагнал
+    if (transactionCount >= 5) {
+        earnedBadges.push("🥉 Эхлэгч санхүүч");
+    }
+
+    if (transactionCount >= 10) {
+        earnedBadges.push("🥈 Санхүүгээ хянагч");
+    }
+
+    if (transactionCount >= 20) {
+        earnedBadges.push("🥇 Мөнгөний мастер");
+    }
+
+    // 100,000₮+ орлого байсан эсэх
+    const hasBigIncome = transactionList.some(tx =>
+        tx.type === 'income' && Number(tx.amount) >= 100000
+    );
+
+    if (hasBigIncome) {
+        earnedBadges.push("💰 Орлогын аварга");
+    }
+
+    // Төсөвтэй холбоотой шагнал шалгах
+    const { data: budgets, error: budgetError } = await supabase
+        .from('budgets')
+        .select('*')
+        .eq('user_id', user.id);
+
+    if (!budgetError) {
+        const budgetList = budgets || [];
+        let hasSafeBudgetExpense = false;
+        let hasResponsibleExpense = false;
+
+        budgetList.forEach(budget => {
+            const monthYear = budget.month_year;
+            const category = budget.category;
+            const limitAmount = Number(budget.limit_amount);
+
+            const monthExpenses = transactionList.filter(tx =>
+                tx.type === 'expense' &&
+                tx.category === category &&
+                tx.date &&
+                tx.date.substring(0, 7) === monthYear
+            );
+
+            const spentAmount = monthExpenses.reduce((sum, tx) => {
+                return sum + Number(tx.amount);
+            }, 0);
+
+            if (monthExpenses.length > 0 && spentAmount <= limitAmount) {
+                hasSafeBudgetExpense = true;
+            }
+
+            const hasBigExpense = monthExpenses.some(tx => Number(tx.amount) >= 50000);
+
+            if (hasBigExpense && spentAmount <= limitAmount) {
+                hasResponsibleExpense = true;
+            }
+        });
+
+        if (hasSafeBudgetExpense) {
+            earnedBadges.push("🛡️ Төсвийн сахиул");
+        }
+
+        if (hasResponsibleExpense) {
+            earnedBadges.push("✅ Хариуцлагатай зарлага");
+        }
+    }
+
+    const alreadyEarned = existingBadges
+        ? existingBadges.map(b => b.badge_name)
+        : [];
+
+    // Одоо авах ёсгүй болсон шагналуудыг устгана
+    const badgesToDelete = existingBadges
+        ? existingBadges.filter(b => !earnedBadges.includes(b.badge_name))
+        : [];
+
+    if (badgesToDelete.length > 0) {
+        const badgeIdsToDelete = badgesToDelete.map(b => b.id);
+
+        const { error: deleteError } = await supabase
+            .from('badges')
+            .delete()
+            .in('id', badgeIdsToDelete);
+
+        if (deleteError) {
+            console.error("Хүчингүй болсон шагнал устгахад алдаа:", deleteError.message);
+        }
+    }
+
+    // Шинээр авах ёстой шагналуудыг нэмнэ
+    const badgesToInsert = earnedBadges
+        .filter(badgeName => !alreadyEarned.includes(badgeName))
+        .map(badgeName => ({
+            user_id: user.id,
+            badge_name: badgeName,
+            awarded_at: new Date().toISOString()
+        }));
+
+    if (badgesToInsert.length === 0) {
+        return;
+    }
+
+    const { error: insertError } = await supabase
+        .from('badges')
+        .insert(badgesToInsert);
+
+    if (insertError) {
+        console.error("Өмнөх гүйлгээний түүхээс шагнал олгоход алдаа:", insertError.message);
+        return;
+    }
+
+    alert(
+        "🎉 ГҮЙЛГЭЭНИЙ ТҮҮХЭЭС ШИНЭ ШАГНАЛ АВЛАА!\n\n" +
+        badgesToInsert.map(b => b.badge_name).join("\n")
+    );
+}
+
+// --- АВСАН ШАГНАЛУУДЫГ УНШИЖ ХАРУУЛАХ ФУНКЦ ---
+async function fetchBadges() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const badgesContainer = document.getElementById('badges-list');
+    if (!badgesContainer) return;
+
+    const { data: badges, error } = await supabase
+        .from('badges')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('awarded_at', { ascending: false });
+
+    if (error) {
+        console.error("Шагнал уншихад алдаа гарлаа:", error.message);
+        badgesContainer.innerHTML = `
+            <div class="alert alert-danger small">
+                Шагнал уншихад алдаа гарлаа: ${error.message}
+            </div>
+        `;
+        return;
+    }
+
+    if (!badges || badges.length === 0) {
+        badgesContainer.innerHTML = `
+            <div class="text-center py-4 text-muted small bg-light rounded">
+                <i class="fa-solid fa-award fs-3 d-block mb-2"></i>
+                Одоогоор шагнал аваагүй байна.
+            </div>
+        `;
+        return;
+    }
+
+    let htmlContent = `
+        <div class="alert alert-warning small fw-bold">
+            Нийт авсан шагнал: ${badges.length}
+        </div>
+    `;
+
+    badges.forEach(badge => {
+        const awardedDate = badge.awarded_at
+            ? new Date(badge.awarded_at).toLocaleDateString('mn-MN')
+            : '';
+
+        htmlContent += `
+            <div class="card border-0 shadow-sm mb-3 bg-light">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="fs-2">
+                        <i class="fa-solid fa-trophy text-warning"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold text-dark">${badge.badge_name}</div>
+                        <div class="text-muted small">Авсан огноо: ${awardedDate}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    badgesContainer.innerHTML = htmlContent;
+}
+// --- BADGES / ШАГНАЛ ЦОЛ ОЛГОХ ФУНКЦ ---
+async function checkBadges(user, newTransaction, isBudgetExceeded) {
+    const { data: transactions, error: txError } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id);
+
+    if (txError) {
+        console.error("Гүйлгээний тоо шалгахад алдаа:", txError.message);
+        return;
+    }
+
+    const { data: existingBadges, error: badgeError } = await supabase
+        .from('badges')
+        .select('badge_name')
+        .eq('user_id', user.id);
+
+    if (badgeError) {
+        console.error("Badge уншихад алдаа:", badgeError.message);
+        alert("Badge уншихад алдаа гарлаа: " + badgeError.message);
+        return;
+    }
+
+    const alreadyEarned = existingBadges
+        ? existingBadges.map(b => b.badge_name)
+        : [];
+
+    const transactionCount = transactions ? transactions.length : 0;
+    let newBadges = [];
+
+    if (transactionCount >= 5) {
+        newBadges.push("🥉 Эхлэгч санхүүч");
+    }
+
+    if (transactionCount >= 10) {
+        newBadges.push("🥈 Санхүүгээ хянагч");
+    }
+
+    if (transactionCount >= 20) {
+        newBadges.push("🥇 Мөнгөний мастер");
+    }
+
+    if (newTransaction.type === 'expense' && !isBudgetExceeded) {
+        newBadges.push("🛡️ Төсвийн сахиул");
+    }
+
+    if (newTransaction.type === 'income' && Number(newTransaction.amount) >= 100000) {
+        newBadges.push("💰 Орлогын аварга");
+    }
+
+    if (
+        newTransaction.type === 'expense' &&
+        Number(newTransaction.amount) >= 50000 &&
+        !isBudgetExceeded
+    ) {
+        newBadges.push("✅ Хариуцлагатай зарлага");
+    }
+
+    const badgesToInsert = newBadges
+        .filter(badgeName => !alreadyEarned.includes(badgeName))
+        .map(badgeName => ({
+            user_id: user.id,
+            badge_name: badgeName,
+            awarded_at: new Date().toISOString()
+        }));
+
+    if (badgesToInsert.length === 0) {
+        return;
+    }
+
+    const { error: insertError } = await supabase
+        .from('badges')
+        .insert(badgesToInsert);
+
+    if (insertError) {
+        console.error("Badge хадгалахад алдаа:", insertError.message);
+        alert("Badge хадгалахад алдаа гарлаа: " + insertError.message);
+        return;
+    }
+
+    alert(
+        "🎉 ШИНЭ ШАГНАЛ АВЛАА!\n\n" +
+        badgesToInsert.map(b => b.badge_name).join("\n")
+    );
+}
 
 
 // Хэрэглэгчийн тогтоосон төсвүүдийг уншиж, Offcanvas доор жагсаах функц
