@@ -41,16 +41,23 @@ transactionForm.addEventListener('submit', async (e) => {
     if (error) {
         alert(`Гүйлгээг хадгалахад алдаа гарлаа: ${error.message}`);
         console.error("Алдааны дэлгэрэнгүй:", error);
-    } else {
-        alert("Гүйлгээ амжилттай бүртгэгдлээ");
-        transactionForm.reset();
-        console.log(data);
+        return;
     }
+
+    alert("Гүйлгээ амжилттай бүртгэгдлээ");
+    transactionForm.reset();
+    console.log(data);
+
     fetchTransactions();
 });
+
 async function fetchTransactions() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+        return;
+    }
+
     const { data: transactions, error } = await supabase
         .from('transactions')
         .select('*')
@@ -61,14 +68,14 @@ async function fetchTransactions() {
         console.error("Гүйлгээ уншихад алдаа гарлаа:", error.message);
         return;
     }
-    console.log(transactions)
 
+    console.log(transactions);
     renderTransactions(transactions);
 }
+
 function renderTransactions(transactions) {
     const listContainer = document.getElementById('transaction-list');
-    
-    // Хэрэв ямар ч гүйлгээ байхгүй бол хоосон байна гэсэн бичиг харуулна
+
     if (transactions.length === 0) {
         listContainer.innerHTML = `
             <tr>
@@ -81,11 +88,9 @@ function renderTransactions(transactions) {
         return;
     }
 
-    // Хүснэгтийг цэвэрлээд, датаг мөр мөрөөр нь залгах
     let htmlContent = '';
-    
+
     transactions.forEach(tx => {
-        // Орлого бол ногоон +, Зарлага бол улаан - тэмдэг тавих логик
         const isIncome = tx.type === 'income';
         const badgeColor = isIncome ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger';
         const typeText = isIncome ? 'Орлого' : 'Зарлага';
@@ -95,10 +100,27 @@ function renderTransactions(transactions) {
         htmlContent += `
             <tr>
                 <td>${tx.date}</td>
-                <td><span class="badge bg-light text-dark shadow-sm border">${tx.category}</span></td>
-                <td class="text-secondary fw-medium">${tx.description}</td>
-                <td><span class="badge ${badgeColor}">${typeText}</span></td>
-                <td class="text-end fw-bold ${amountColor}">${amountSign}${tx.amount.toLocaleString()} ₮</td>
+
+                <td>
+                    <span class="badge bg-light text-dark shadow-sm border">
+                        ${tx.category}
+                    </span>
+                </td>
+
+                <td class="text-secondary fw-medium">
+                    ${tx.description}
+                </td>
+
+                <td>
+                    <span class="badge ${badgeColor}">
+                        ${typeText}
+                    </span>
+                </td>
+
+                <td class="text-end fw-bold ${amountColor}">
+                    ${amountSign}${Number(tx.amount).toLocaleString()} ₮
+                </td>
+
                 <td class="text-center">
                     <button class="btn btn-sm btn-link text-danger p-0" onclick="deleteTransaction('${tx.id}')">
                         <i class="fa-solid fa-trash-can"></i>
@@ -107,6 +129,30 @@ function renderTransactions(transactions) {
             </tr>
         `;
     });
-    // Бэлдсэн  HTML мөрүүдээ хүснэгтийн tbody руу шууд шахаж оруулна
+
     listContainer.innerHTML = htmlContent;
 }
+
+window.deleteTransaction = async function (id) {
+    const confirmDelete = confirm("Энэ гүйлгээг устгах уу?");
+
+    if (!confirmDelete) {
+        return;
+    }
+
+    const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        alert(`Гүйлгээ устгахад алдаа гарлаа: ${error.message}`);
+        console.error("Устгах алдаа:", error);
+        return;
+    }
+
+    alert("Гүйлгээ амжилттай устлаа");
+    fetchTransactions();
+};
+
+fetchTransactions();
