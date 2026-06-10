@@ -24,10 +24,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Хэрэглэгч нэвтэрсэн нь үнэн бол имэйлийг нь navbar дээр харуулна
     document.getElementById('user-email').textContent = user.email;
 
-    await fetchTransactions(); 
-    fetchBudgets();
-    // Доор бичих төсвийн жагсаалтыг шинэчлэх функцийг дуудна
-    if (typeof fetchBudgets === 'function') fetchBudgets();
+    await fetchTransactions();
+    await fetchBudgets();
 });
 
 transactionForm.addEventListener('submit', async (e) => {
@@ -126,8 +124,9 @@ transactionForm.addEventListener('submit', async (e) => {
         alert("Гүйлгээ амжилттай бүртгэгдлээ!");
         transactionForm.reset(); // Формын бүх талбарыг цэвэрлэж хоосон болгоно
     }
-    // Хуудас ачаалагдаж дуусах үед өгөгдлийг уншиж ирж харуулна
-    fetchTransactions();
+    // Гүйлгээ нэмэгдсэний дараа хүснэгт болон төсвийн үлдэгдлийг шинэчилнэ
+    await fetchTransactions();
+    await fetchBudgets();
 });
 
 // Өгөгдлийн сангаас гүйлгээ уншиж, хүснэгтэд харуулах функц
@@ -241,8 +240,9 @@ window.deleteTransaction = async function(id) {
 
         alert("Гүйлгээ амжилттай устгагдлаа.");
 
-        // Устгасны дараа дэлгэц дээрх хүснэгтийг шууд шинэчилж харуулна
-        fetchTransactions();
+        // Устгасны дараа дэлгэц дээрх хүснэгт болон төсвийн үлдэгдлийг шинэчилж харуулна
+        await fetchTransactions();
+        await fetchBudgets();
 
     } catch (error) {
         alert("Гүйлгээ устгахад алдаа гарлаа: " + error.message);
@@ -323,8 +323,8 @@ budgetForm.addEventListener('submit', async (e) => {
         const instance = bootstrap.Offcanvas.getInstance(document.getElementById('offcanvasBudget'));
         if (instance) instance.hide();
         
-        // Доор бичих төсвийн жагсаалтыг шинэчлэх функцийг дуудна
-        if (typeof fetchBudgets === 'function') fetchBudgets();
+        // Төсвийн жагсаалтыг шинэчилнэ
+        await fetchBudgets();
     }
 });
 
@@ -334,6 +334,7 @@ async function fetchBudgets() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    // 1. Хэрэглэгчийн тогтоосон бүх төсвийг авна
     const { data: budgets, error } = await supabase
         .from('budgets')
         .select('*')
@@ -357,20 +358,98 @@ async function fetchBudgets() {
 
     let htmlContent = `<h6 class="fw-bold text-dark mb-3">Одоогийн тогтоосон төсвүүд:</h6>`;
     
-    budgets.forEach(b => {
+    // 2. Төсөв бүр дээр тухайн сар, тухайн ангиллын зарлагыг бодож үлдэгдлийг гаргана
+    for (const b of budgets) {
+        const monthYear = b.month_year; // Жишээ: 2026-06
+        const startDate = `${monthYear}-01`;
+
+        // Дараагийн сарын эхний өдрийг гаргана
+        const [year, month] = monthYear.split('-').map(Number);
+        const nextMonth = new Date(year, month, 1);
+        const nextMonthYear = nextMonth.toISOString().substring(0, 10);
+
+        // 3. Энэ budget-ийн category болон month_year дээр таарах зарлагуудыг авна
+        const { data: expenses, error: expenseError } = await supabase
+            .from('transactions')
+            .select('amount')
+            .eq('user_id', user.id)
+            .eq('type', 'expense')
+            .eq('category', b.category)
+            .gte('date', startDate)
+            .lt('date', nextMonthYear);
+
+        if (expenseError) {
+            console.error("Зарлага уншихад алдаа гарлаа:", expenseError.message);
+            continue;
+        }
+
+        // 4. Тухайн сарын тухайн ангиллын зарлагын нийлбэр
+        let spentAmount = 0;
+        if (expenses) {
+            expenses.forEach(tx => {
+                spentAmount += Number(tx.amount);
+            });
+        }
+
+        // 5. Үлдэгдэл төсөв
+        const limitAmount = Number(b.limit_amount);
+        const remainingAmount = limitAmount - spentAmount;
+
+        // 6. Зарцуулалтын хувь
+        const percentUsed = limitAmount > 0
+            ? Math.min((spentAmount / limitAmount) * 100, 100)
+            : 0;
+
+        // 7. Төлөв болон өнгө
+        let progressColor = 'bg-success';
+        let statusText = 'Хэвийн';
+        let remainingColor = 'text-success';
+
+        if (remainingAmount < 0) {
+            progressColor = 'bg-danger';
+            statusText = 'Хэтэрсэн';
+            remainingColor = 'text-danger';
+        } else if (percentUsed >= 80) {
+            progressColor = 'bg-warning';
+            statusText = 'Анхаарах';
+            remainingColor = 'text-warning';
+        }
+
         htmlContent += `
-            <div class="card p-2 mb-2 bg-light border-0 shadow-sm">
-                <div class="d-flex justify-content-between align-items-center">
+            <div class="card p-3 mb-3 bg-light border-0 shadow-sm">
+                <div class="d-flex justify-content-between align-items-center mb-2">
                     <div>
-                        <span class="fw-bold small text-dark">${b.category}</span>
+                        <span class="fw-bold text-dark">${b.category}</span>
                         <span class="text-muted mx-1">•</span>
                         <span class="small text-secondary">${b.month_year}</span>
                     </div>
-                    <span class="fw-bold text-primary small">${b.limit_amount.toLocaleString()} ₮</span>
+                    <span class="badge ${remainingAmount < 0 ? 'bg-danger' : 'bg-success'}">
+                        ${statusText}
+                    </span>
+                </div>
+
+                <div class="small text-secondary mb-1">
+                    Төсөв: <b>${limitAmount.toLocaleString()} ₮</b>
+                </div>
+
+                <div class="small text-secondary mb-1">
+                    Зарцуулсан: <b class="text-danger">${spentAmount.toLocaleString()} ₮</b>
+                </div>
+
+                <div class="small mb-2">
+                    Үлдэгдэл: 
+                    <b class="${remainingColor}">${remainingAmount.toLocaleString()} ₮</b>
+                </div>
+
+                <div class="progress" style="height: 8px;">
+                    <div 
+                        class="progress-bar ${progressColor}" 
+                        style="width: ${percentUsed}%;">
+                    </div>
                 </div>
             </div>
         `;
-    });
+    }
 
     budgetsContainer.innerHTML = htmlContent;
 }
