@@ -420,15 +420,15 @@ async function syncExistingBadges(user) {
 
     // Нийт гүйлгээний тоогоор авах шагнал
     if (transactionCount >= 5) {
-        earnedBadges.push("🥉 Эхлэгч санхүүч");
+        earnedBadges.push("🐣 Мөнгөний дэгдээхэй");
     }
 
     if (transactionCount >= 10) {
-        earnedBadges.push("🥈 Санхүүгээ хянагч");
+        earnedBadges.push("🦊 Ухаалаг хадгалагч");
     }
 
     if (transactionCount >= 20) {
-        earnedBadges.push("🥇 Мөнгөний мастер");
+        earnedBadges.push("🦁 Алтан санхүүч");
     }
 
     // 100,000₮+ орлого байсан эсэх
@@ -437,7 +437,7 @@ async function syncExistingBadges(user) {
     );
 
     if (hasBigIncome) {
-        earnedBadges.push("💰 Орлогын аварга");
+        earnedBadges.push("💎 Premium орлоготон");
     }
 
     // Төсөвтэй холбоотой шагнал шалгах
@@ -479,11 +479,11 @@ async function syncExistingBadges(user) {
         });
 
         if (hasSafeBudgetExpense) {
-            earnedBadges.push("🛡️ Төсвийн сахиул");
+            earnedBadges.push("🐢 Төсвийн хамгаалагч");
         }
 
         if (hasResponsibleExpense) {
-            earnedBadges.push("✅ Хариуцлагатай зарлага");
+            earnedBadges.push("🏆 Gold зарлагын мастер");
         }
     }
 
@@ -630,23 +630,23 @@ async function checkBadges(user, newTransaction, isBudgetExceeded) {
     let newBadges = [];
 
     if (transactionCount >= 5) {
-        newBadges.push("🥉 Эхлэгч санхүүч");
+        newBadges.push("🐣 Мөнгөний дэгдээхэй");
     }
 
     if (transactionCount >= 10) {
-        newBadges.push("🥈 Санхүүгээ хянагч");
+        newBadges.push("🦊 Ухаалаг хадгалагч");
     }
 
     if (transactionCount >= 20) {
-        newBadges.push("🥇 Мөнгөний мастер");
+        newBadges.push("🦁 Алтан санхүүч");
     }
 
     if (newTransaction.type === 'expense' && !isBudgetExceeded) {
-        newBadges.push("🛡️ Төсвийн сахиул");
+        newBadges.push("🐢 Төсвийн хамгаалагч");
     }
 
     if (newTransaction.type === 'income' && Number(newTransaction.amount) >= 100000) {
-        newBadges.push("💰 Орлогын аварга");
+        newBadges.push("💎 Premium орлоготон");
     }
 
     if (
@@ -654,7 +654,7 @@ async function checkBadges(user, newTransaction, isBudgetExceeded) {
         Number(newTransaction.amount) >= 50000 &&
         !isBudgetExceeded
     ) {
-        newBadges.push("✅ Хариуцлагатай зарлага");
+        newBadges.push("🏆 Gold зарлагын мастер");
     }
 
     const badgesToInsert = newBadges
